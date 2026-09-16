@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# Data products (keep fixtures)
+data/ohlcv/
+data/factors/
+data/scores/
+data/backtests/
+*.parquet
+
+# Logs / secrets / kill
+logs/*.jsonl
+logs/*.log
+KILL
+.kill
+
+# Test / IDE
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.idea/
+.vscode/
+
+# OS
+.DS_Store
