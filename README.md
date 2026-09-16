@@ -75,7 +75,7 @@ python -m factorlib compute-factors
 python -m factorlib screen-factors
 ```
 
-规则在 `config/default.yaml` 的 `screen:`。产出在 `data/backtests/factor_screen/`。方法、本样本表、默认权重谁存活/谁冗余、以及生产流程见 **[docs/factor-screening.md](docs/factor-screening.md)**（简体中文）。研究工具，不是投资建议。
+规则在 `config/default.yaml` 的 `screen:`。产出在 `data/backtests/factor_screen/`。方法、本样本表、默认权重谁存活/谁冗余、以及生产流程见 **[docs/factor-screening.md](docs/factor-screening.md)**（简体中文）。同一套模型在 ETH/SOL/XRP/BNB/ADA/AVAX/LINK/DOGE/LTC/DOT 上的推广对照见 **[docs/multi-asset-transfer.md](docs/multi-asset-transfer.md)**。研究工具，不是投资建议。
 
 ## 如何打开实盘（默认关闭）
 
