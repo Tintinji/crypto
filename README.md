@@ -26,4 +26,6 @@ discuss-SYMBOL/
 
 当前宇宙快照见 `universe/top100.json` 的 `snapshot_utc`。价格与市值来自 CoinGecko `/coins/markets`；TVL、费用、稳定币流通来自 DefiLlama。对不上的字段写「未知」，辩论中不得补造。
 
+本轮 100 个币的对抗辩论与总结稿已齐，入口是 [research/_index.md](research/_index.md)。
+
 研究备忘，非投资建议。
