@@ -11,8 +11,8 @@ ingest (yfinance / 离线合成)
     → data/ohlcv/*.parquet
 compute-factors
     → data/factors/panel.parquet
-score / backtest
-    → data/scores/  data/backtests/
+score / backtest / screen-factors
+    → data/scores/  data/backtests/  data/backtests/factor_screen/
 paper-order (默认) 或 live-order (双重闸门)
     → logs/orders.jsonl
 ```
@@ -22,10 +22,10 @@ paper-order (默认) 或 live-order (双重闸门)
 | 数据 | `src/factorlib/data/` | YAML 配置、yfinance 包装、日历、ETF CSV、合成备援、parquet 存储 |
 | 宏观 | `src/factorlib/macro/` | 利率 / FX / 商品 / 股指 / 相关 / 日历 / 资金流 |
 | 价量 | `src/factorlib/pricevolume/` | BTC/ETH/SOL 收益、动量、波动、流动性 |
-| 模型 | `src/factorlib/model/` | FactorStore、时序 z-score 合成、扩展窗口回测 |
+| 模型 | `src/factorlib/model/` | FactorStore、时序 z-score 合成、扩展窗口回测、因子筛选 |
 | 风控 | `src/factorlib/risk/` | 名义、持仓、日亏、点差、KILL 开关 |
 | 执行 | `src/factorlib/execution/` | PaperAdapter（无网络）/ ccxt 实盘 |
-| CLI | `src/factorlib/cli/` | `ingest` → `compute-factors` → `score` → `paper-order` |
+| CLI | `src/factorlib/cli/` | `ingest` → `compute-factors` → `score` / `backtest` / `screen-factors` → `paper-order` |
 
 所有滚动窗口只用 **t 及之前** 的 bar。回测默认 `signal_lag=1`（收盘信号，下一根成交）。
 
@@ -65,6 +65,17 @@ python -m factorlib list-factors
 ```
 
 配置：`config/default.yaml`（宇宙、回看期、权重、风控上限）。
+
+## 因子筛选
+
+点-in-time 筛选（Rank IC / ICIR / Newey–West、相关簇、IS vs 最后 126 日 OOS、1/5/20 日衰减），并按入选集合重做权重，对比默认权重、全因子等权、BTC 买入持有（默认 15 bp）。
+
+```bash
+python -m factorlib compute-factors
+python -m factorlib screen-factors
+```
+
+规则在 `config/default.yaml` 的 `screen:`。产出在 `data/backtests/factor_screen/`。方法、本样本表、默认权重谁存活/谁冗余、以及生产流程见 **[docs/factor-screening.md](docs/factor-screening.md)**（简体中文）。研究工具，不是投资建议。
 
 ## 如何打开实盘（默认关闭）
 

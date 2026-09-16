@@ -39,6 +39,8 @@ class ScreenConfig:
     nw_lags: int | None = None
     cost_bps: float = 15.0
     primary_horizon: int = 1
+    min_unique: int = 2
+    exclude_ids: tuple[str, ...] = ()
 
     @classmethod
     def from_cfg(cls, cfg: dict[str, Any] | None) -> ScreenConfig:
@@ -65,6 +67,8 @@ class ScreenConfig:
             nw_lags=raw.get("nw_lags"),
             cost_bps=float(raw.get("cost_bps", model.get("cost_bps", 15))),
             primary_horizon=int(raw.get("primary_horizon", 1)),
+            min_unique=int(raw.get("min_unique", 2)),
+            exclude_ids=tuple(str(x) for x in (raw.get("exclude_ids") or [])),
         )
 
 
@@ -284,6 +288,7 @@ def evaluate_factor(
         "ic_nonrestrictive": float("nan"),
         "ic_high_vol": float("nan"),
         "ic_low_vol": float("nan"),
+        "n_unique": int(pd.to_numeric(z, errors="coerce").dropna().nunique()),
     }
     for h in cfg.horizons:
         row[f"ic_{h}d"] = float("nan")
@@ -380,6 +385,14 @@ def select_factors(
         fid = str(fid)
         if allow is not None and fid not in allow:
             dropped.append({"id": fid, "reason": "not_in_registry"})
+            continue
+        if fid in cfg.exclude_ids:
+            dropped.append({"id": fid, "reason": "excluded_id"})
+            continue
+        n_unique_raw = _safe_float(row.get("n_unique", 99))
+        n_unique = int(n_unique_raw) if np.isfinite(n_unique_raw) else 99
+        if n_unique < cfg.min_unique:
+            dropped.append({"id": fid, "reason": "min_unique", "n_unique": n_unique})
             continue
         icir = _safe_float(row.get("icir_is", np.nan))
         if not np.isfinite(icir):

@@ -107,7 +107,7 @@ def test_selected_ids_are_registry_subset():
 def test_select_factors_drops_weaker_of_corr_cluster():
     metrics = pd.DataFrame(
         {
-            "icir_is": [1.2, 0.9, 0.05],
+            "icir_is": [1.2, 0.9, 0.8],
             "ic_is": [0.1, 0.08, 0.01],
             "ic_oos": [0.06, 0.05, -0.02],
             "same_sign_is_oos": [True, True, False],
@@ -126,6 +126,25 @@ def test_select_factors_drops_weaker_of_corr_cluster():
     reasons = {d["id"]: d["reason"] for d in dropped}
     assert reasons["clone"] == "redundant_corr"
     assert reasons["weak"] == "oos_sign_mismatch"
+
+    sparse = metrics.copy()
+    sparse["n_unique"] = 20
+    sparse.loc["flag"] = {
+        "icir_is": 2.0,
+        "ic_is": -0.2,
+        "ic_oos": -0.1,
+        "same_sign_is_oos": True,
+        "turnover": 0.01,
+        "n_unique": 2,
+    }
+    corr2 = corr.copy()
+    corr2.loc["flag"] = 0.0
+    corr2["flag"] = 0.0
+    corr2.loc["flag", "flag"] = 1.0
+    cfg2 = ScreenConfig(icir_threshold=0.3, corr_threshold=0.7, min_unique=8)
+    kept2, dropped2 = select_factors(sparse, corr2, cfg2, allowed=list(sparse.index))
+    assert "flag" not in kept2
+    assert any(d["id"] == "flag" and d["reason"] == "min_unique" for d in dropped2)
     weights = build_screened_weights(kept, metrics, "icir")
     assert weights["strong"] > 0
 

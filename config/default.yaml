@@ -90,6 +90,8 @@ screen:
   turnover_cap: 0.35
   weight_scheme: icir          # icir | equal_risk | equal
   primary_horizon: 1
+  min_unique: 2                # production: raise to ~10 to drop sparse flags
+  # exclude_ids: [macro_hormuz_risk_flag, cal_fomc_flag, cal_cpi_flag, flow_btc_etf_net]
 
 execution:
   mode: paper                 # paper | live
