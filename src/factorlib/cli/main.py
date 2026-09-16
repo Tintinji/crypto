@@ -23,6 +23,13 @@ from factorlib.model.backtest import run_backtest
 from factorlib.model.factor_store import FactorStore
 from factorlib.model.metrics import format_metrics
 from factorlib.model.scoring import latest_score, score_panel
+from factorlib.model.screening import (
+    ScreenConfig,
+    format_metrics_table,
+    persist_screen,
+    run_comparison_backtests,
+    run_screen,
+)
 from factorlib.paths import REPO_ROOT
 from factorlib.registry import factor_catalog
 from factorlib.risk.gates import kill_switch_active
@@ -57,21 +64,41 @@ def cmd_ingest(cfg: dict, args: argparse.Namespace) -> int:
         seed_offline_universe(tickers, persist=True)
         print(json.dumps({"ok": tickers, "failed": [], "source": "offline_synthetic"}))
         return 0
-    ok, failed = [], []
+    ok, failed, reused, fallback = [], [], [], []
     for t in tickers:
         df = download_ohlcv(t, start=start, end=end)
-        if df is None or df.empty:
-            failed.append(t)
+        if df is not None and not df.empty:
+            write_ohlcv(t, df)
+            ok.append(t)
+            logger.info("ingest %s rows=%d last=%.4f", t, len(df), float(df["close"].iloc[-1]))
             continue
-        write_ohlcv(t, df)
-        ok.append(t)
-        logger.info("ingest %s rows=%d last=%.4f", t, len(df), float(df["close"].iloc[-1]))
+        try:
+            existing = read_ohlcv(t)
+        except FileNotFoundError:
+            existing = None
+        if existing is not None and not existing.empty:
+            reused.append(t)
+            ok.append(t)
+            logger.warning("yfinance missed %s — keeping existing OHLCV rows=%d", t, len(existing))
+            continue
+        failed.append(t)
     if failed and offline:
         logger.warning("yfinance missed %s — seeding deterministic offline OHLCV", failed)
         seed_offline_universe(failed, persist=True)
+        fallback = list(failed)
         ok.extend(failed)
         failed = []
-    print(json.dumps({"ok": ok, "failed": failed, "source": "yfinance+fallback" if offline else "yfinance"}))
+    print(
+        json.dumps(
+            {
+                "ok": ok,
+                "failed": failed,
+                "reused": reused,
+                "fallback": fallback,
+                "source": "yfinance+fallback" if (offline and fallback) else "yfinance",
+            }
+        )
+    )
     return 0 if ok else 1
 
 
@@ -204,6 +231,60 @@ def cmd_backtest(cfg: dict, _args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_screen_factors(cfg: dict, args: argparse.Namespace) -> int:
+    store = FactorStore(cfg)
+    try:
+        panel = store.load()
+    except FileNotFoundError:
+        print("no factor panel — run compute-factors first", file=sys.stderr)
+        return 1
+    if panel.empty:
+        print("empty factor panel — run compute-factors first", file=sys.stderr)
+        return 1
+    model = cfg.get("model") or {}
+    target = model.get("target_symbol", "BTC-USD")
+    close = read_ohlcv(target)["close"]
+    scfg = ScreenConfig.from_cfg(cfg)
+    if args.oos_days is not None:
+        scfg.oos_days = int(args.oos_days)
+    if args.icir_threshold is not None:
+        scfg.icir_threshold = float(args.icir_threshold)
+    if args.corr_threshold is not None:
+        scfg.corr_threshold = float(args.corr_threshold)
+    if args.weight_scheme:
+        scfg.weight_scheme = str(args.weight_scheme)
+    if args.turnover_penalty:
+        scfg.turnover_penalty = True
+
+    result = run_screen(panel, close, scfg, registry_ids=store.factor_ids())
+    dest = persist_screen(result)
+    print("research only — not financial advice")
+    print(json.dumps({"split": result.split, "n_factors": int(len(result.metrics)), "n_selected": len(result.selected), "selected": result.selected, "path": str(dest)}, indent=2))
+    print("\n=== top 12 by |ICIR_IS| ===")
+    ranked = result.metrics.reindex(result.metrics["icir_is"].abs().sort_values(ascending=False).index)
+    print(format_metrics_table(ranked.head(12)))
+    print("\n=== bottom 8 by ICIR_IS ===")
+    print(format_metrics_table(result.metrics.sort_values("icir_is", na_position="first").head(8)))
+    print(f"\n=== selected ({len(result.selected)}) weights={result.weights} ===")
+    if not args.skip_backtest:
+        comparison = run_comparison_backtests(
+            panel,
+            close,
+            default_weights=model.get("weights") or {},
+            screened_weights=result.weights,
+            cfg=scfg,
+            persist=True,
+            out_dir=dest,
+        )
+        result.comparison = comparison
+        print("\n=== comparison (cost_bps=%.1f) ===" % scfg.cost_bps)
+        for name, met in comparison.items():
+            if "cagr" in met:
+                print(f"{name:12s}  {format_metrics(met)}")
+        print(json.dumps({k: v for k, v in comparison.items()}, indent=2, default=str))
+    return 0
+
+
 def cmd_list_factors(_cfg: dict, _args: argparse.Namespace) -> int:
     from factorlib.macro.compute import register_macro_specs
     from factorlib.pricevolume.compute import register_pv_specs
@@ -250,6 +331,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     lf = sub.add_parser("list-factors", help="Print factor catalog")
     lf.set_defaults(func=cmd_list_factors)
+
+    sf = sub.add_parser(
+        "screen-factors",
+        help="PIT factor screen (IC/ICIR/clusters/OOS) + screened-weight backtest",
+    )
+    sf.add_argument("--oos-days", type=int, default=None)
+    sf.add_argument("--icir-threshold", type=float, default=None)
+    sf.add_argument("--corr-threshold", type=float, default=None)
+    sf.add_argument("--weight-scheme", choices=["icir", "equal_risk", "equal"], default=None)
+    sf.add_argument("--turnover-penalty", action="store_true")
+    sf.add_argument("--skip-backtest", action="store_true")
+    sf.set_defaults(func=cmd_screen_factors)
     return p
 
 

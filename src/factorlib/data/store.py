@@ -25,6 +25,10 @@ def backtest_dir() -> Path:
     return ensure_dir(repo_path("data", "backtests"))
 
 
+def factor_screen_dir() -> Path:
+    return ensure_dir(repo_path("data", "backtests", "factor_screen"))
+
+
 def _safe_name(name: str) -> str:
     return (
         name.replace("^", "")

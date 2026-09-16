@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pandas as pd
 
 from factorlib.data.store import backtest_dir, write_frame
@@ -21,6 +23,8 @@ def run_backtest(
     expanding: bool = True,
     z_clip: float = 3.0,
     persist: bool = True,
+    out_dir=None,
+    stem: str = "equity",
 ) -> tuple[pd.DataFrame, dict]:
     """Score uses data through t; position for return t+lag (default next bar).
 
@@ -53,9 +57,15 @@ def run_backtest(
     metrics["expanding"] = bool(expanding)
 
     if persist:
-        write_frame(aligned, backtest_dir() / "equity.parquet")
-        aligned.to_csv(backtest_dir() / "equity.csv")
-        save_metrics(metrics, backtest_dir() / "metrics.json")
-        (backtest_dir() / "metrics.txt").write_text(format_metrics(metrics) + "\n", encoding="utf-8")
+        dest = Path(out_dir) if out_dir is not None else backtest_dir()
+        dest.mkdir(parents=True, exist_ok=True)
+        write_frame(aligned, dest / f"{stem}.parquet")
+        aligned.to_csv(dest / f"{stem}.csv")
+        save_metrics(metrics, dest / f"{stem}_metrics.json")
+        if stem == "equity":
+            save_metrics(metrics, dest / "metrics.json")
+            (dest / "metrics.txt").write_text(format_metrics(metrics) + "\n", encoding="utf-8")
+        else:
+            (dest / f"{stem}_metrics.txt").write_text(format_metrics(metrics) + "\n", encoding="utf-8")
 
     return aligned, metrics

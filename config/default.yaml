@@ -77,6 +77,20 @@ model:
     cal_fomc_flag: -0.02
     cal_cpi_flag: -0.02
 
+# Factor screening (no lookahead). IC vs BTC forward return after signal_lag.
+# |ICIR_IS| >= threshold AND OOS IC same sign as IS; drop weaker of |corr| > 0.7 pairs.
+screen:
+  icir_threshold: 0.3
+  oos_days: 126
+  corr_threshold: 0.7
+  horizons: [1, 5, 20]
+  rolling_ic_window: 63
+  min_obs: 60
+  turnover_penalty: false
+  turnover_cap: 0.35
+  weight_scheme: icir          # icir | equal_risk | equal
+  primary_horizon: 1
+
 execution:
   mode: paper                 # paper | live
   exchange_id: binance        # binance | bybit | okx (env EXCHANGE_ID wins)
