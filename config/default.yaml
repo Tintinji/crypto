@@ -1,0 +1,103 @@
+# Factor library + execution defaults. Override with --config path.
+universe:
+  crypto:
+    - BTC-USD
+    - ETH-USD
+    - SOL-USD
+  # yfinance tickers. Downloads are wrapped in try/except; missing series are skipped.
+  macro:
+    us10y: "^TNX"
+    us2y: "2YY=F"          # 2Y yield future; fallbacks in code if empty
+    us13w: "^IRX"
+    dxy: "DX-Y.NYB"
+    usdjpy: "USDJPY=X"
+    wti: "CL=F"
+    brent: "BZ=F"
+    gold: "GC=F"
+    spx: "^GSPC"
+    ndx: "^NDX"
+    krw: "KRW=X"
+    btc_krw: "BTC-KRW"
+
+lookbacks:
+  momentum: [5, 20, 60]
+  vol: [30, 90]
+  corr: [20, 60]
+  ma: [20, 200, 365]
+  rsi: 14
+  atr: 14
+  volume_z: 20
+
+# Approximate circulating supplies for a BTC dominance *proxy* (not CoinMarketCap official).
+# Override if you have a better source. Units: coins.
+supplies:
+  BTC-USD: 19700000
+  ETH-USD: 120500000
+  SOL-USD: 470000000
+
+calendar:
+  fixture: data/fixtures/fomc_cpi_2026q4.csv
+  hormuz_fixture: data/fixtures/hormuz_risk.csv
+  event_window_days: 1
+
+etf_flows:
+  # Official IBIT / US spot BTC ETF flows are NOT on yfinance.
+  # Plug Farside / SoSoValue / issuer CSVs here. Sample fixture ships for research.
+  csv_path: data/fixtures/btc_etf_flows.csv
+  date_col: date
+  value_col: net_flow_usd_mn
+
+model:
+  target_symbol: BTC-USD
+  zscore_window: 126
+  zscore_min_periods: 20
+  z_clip: 3.0
+  cost_bps: 15
+  signal_lag: 1
+  expanding: true
+  # Weights applied to z-scored factors. Missing columns are skipped.
+  weights:
+    px_btc_mom_20: 0.15
+    px_btc_mom_60: 0.10
+    px_btc_dist_200dma: 0.10
+    px_btc_dist_365dma: 0.12
+    px_btc_rv_30d: -0.08
+    px_btc_breakout_20: 0.08
+    px_btc_vol_z_20: 0.05
+    px_ethbtc_ret_20d: 0.06
+    px_btc_dominance_proxy: 0.05
+    macro_dxy_ret_20d: -0.08
+    macro_us10y_chg: -0.07
+    macro_fed_restrictive_flag: -0.05
+    macro_oil_ret_20d: 0.03
+    macro_gold_ret_20d: 0.04
+    x_btc_spx_corr_20d: -0.04
+    x_btc_dxy_corr_20d: -0.04
+    flow_btc_etf_net: 0.12
+    cal_fomc_flag: -0.02
+    cal_cpi_flag: -0.02
+
+execution:
+  mode: paper                 # paper | live
+  exchange_id: binance        # binance | bybit | okx (env EXCHANGE_ID wins)
+  market_type: spot           # spot recommended; futures requires isolated + leverage cap
+  symbol: BTC/USDT
+  quote: USDT
+  order_type: market          # market | limit
+  limit_offset_bps: 5         # limit price = mid * (1 ± offset) by side
+  default_notional_usd: 50    # small default size
+  max_notional_usd: 200
+  max_position_usd: 400
+  max_daily_loss_usd: 40
+  max_spread_bps: 25
+  leverage_cap: 1             # 1–2 only if futures
+  reduce_only: false
+  paper_cash_usd: 10000
+
+risk:
+  kill_switch_file: KILL
+
+ingest:
+  start: "2023-01-01"
+  # end: omit = today
+  offline_fallback: true
