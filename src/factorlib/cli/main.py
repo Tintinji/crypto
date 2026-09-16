@@ -53,9 +53,13 @@ def cmd_ingest(cfg: dict, args: argparse.Namespace) -> int:
     end = args.end or (cfg.get("ingest") or {}).get("end")
     offline = args.offline or (cfg.get("ingest") or {}).get("offline_fallback", True)
     tickers = _all_tickers(cfg)
+    if args.offline:
+        seed_offline_universe(tickers, persist=True)
+        print(json.dumps({"ok": tickers, "failed": [], "source": "offline_synthetic"}))
+        return 0
     ok, failed = [], []
     for t in tickers:
-        df = None if args.offline else download_ohlcv(t, start=start, end=end)
+        df = download_ohlcv(t, start=start, end=end)
         if df is None or df.empty:
             failed.append(t)
             continue
@@ -67,7 +71,7 @@ def cmd_ingest(cfg: dict, args: argparse.Namespace) -> int:
         seed_offline_universe(failed, persist=True)
         ok.extend(failed)
         failed = []
-    print(json.dumps({"ok": ok, "failed": failed, "offline_fallback": bool(failed == [] and offline)}))
+    print(json.dumps({"ok": ok, "failed": failed, "source": "yfinance+fallback" if offline else "yfinance"}))
     return 0 if ok else 1
 
 
